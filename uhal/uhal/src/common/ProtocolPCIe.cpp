@@ -169,6 +169,7 @@ void PCIe::File::createBuffer(const size_t aNrBytes)
     else {
       delete mBuffer;
       mBuffer = NULL;
+      mBufferSize = 0;
     }
   }
 
@@ -178,6 +179,8 @@ void PCIe::File::createBuffer(const size_t aNrBytes)
     log(lExc, "Failed to allocate ", Integer(aNrBytes + 4096), " bytes in PCIe::File::createBuffer");
     throw lExc;
   }
+
+  mBufferSize=aNrBytes+4096;
 }
 
 
