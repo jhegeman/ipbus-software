@@ -36,18 +36,24 @@ namespace uhal
 
   template< typename T >
 
-  ValHeader::ValHeader ( const ValWord<T>& aValWord ) :
-    mMembers ( aValWord.mMembers )
+  ValHeader::ValHeader ( const ValWord<T>& aValWord )
   {
+    bool lFresh;
+    mPool.claim( mMembers , lFresh );  
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = aValWord.mMembers->valid;    
   }
 
 
 
   template< typename T >
 
-  ValHeader::ValHeader ( const ValVector<T>& aValVector ) :
-    mMembers ( aValVector.mMembers )
+  ValHeader::ValHeader ( const ValVector<T>& aValVector )
   {
+    bool lFresh;
+    mPool.claim( mMembers , lFresh );  
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = aValVector.mMembers->valid;         
   }
 
 

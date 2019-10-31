@@ -39,55 +39,82 @@
 namespace uhal
 {
 
-  _ValHeader_::_ValHeader_ ( const bool& aValid ) :
-    valid ( aValid )
+  // _ValHeader_::_ValHeader_ ( const bool& aValid ) :
+  //   valid ( aValid )
+  // {
+  // }
+
+
+  // template< typename T >
+  // _ValWord_<T>::_ValWord_ ( const T& aValue , const bool& aValid , const uint32_t aMask ) :
+  //   _ValHeader_ ( aValid ) ,
+  //   value ( aValue ) ,
+  //   mask ( aMask )
+  // {
+  // }
+
+
+
+  // template< typename T >
+  // _ValVector_<T>::_ValVector_ ( const std::vector<T>& aValue , const bool& aValid ) :
+  //   _ValHeader_ ( aValid ),
+  //   value ( aValue )
+  // {
+  // }
+
+
+  _ValHeader_::_ValHeader_ ( ) :
+    valid ( false ),
+    ReferenceCount( 0 )
   {
   }
 
 
   template< typename T >
-  _ValWord_<T>::_ValWord_ ( const T& aValue , const bool& aValid , const uint32_t aMask ) :
-    _ValHeader_ ( aValid ) ,
-    value ( aValue ) ,
-    mask ( aMask )
+  _ValWord_<T>::_ValWord_ ( ) :
+    _ValHeader_ ( ) ,
+    value ( 0 ) ,
+    mask ( T(-1) )
   {
   }
 
 
 
   template< typename T >
-  _ValVector_<T>::_ValVector_ ( const std::vector<T>& aValue , const bool& aValid ) :
-    _ValHeader_ ( aValid ),
-    value ( aValue )
+  _ValVector_<T>::_ValVector_ ( ) :
+    _ValHeader_ (),
+    value ()
   {
   }
-
-
 
 
   ValHeader::ValHeader()
   {
-    boost::lock_guard<boost::mutex> lLock ( mMutex );
-    if( mPool.empty() )
-    {
-      mMembers = boost::shared_ptr< _ValHeader_ >( new _ValHeader_ ( false ) );
-    } else {
-      mMembers = mPool.back();
-      mPool.pop_back();
+    bool lFresh;
+    mPool.claim( mMembers , lFresh );  
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = false;
+  }
 
-      mMembers->valid = false;
-    }
+
+  ValHeader::ValHeader ( const ValHeader& aVal ) :
+    mMembers ( aVal.mMembers )
+  {
+    ++(mMembers->ReferenceCount);    
+  }
+
+  ValHeader& ValHeader::operator= ( const ValHeader& aVal )
+  {
+    if( --(mMembers->ReferenceCount) == 0 ) mPool.release( mMembers );
+    mMembers = aVal.mMembers ;
+    ++(mMembers->ReferenceCount);    
+    return *this;    
   }
 
 
   ValHeader::~ValHeader() 
   {
-    if(mMembers.use_count() == 1)
-    {
-      // If we are the last user, then return to the pool
-      boost::lock_guard<boost::mutex> lLock ( mMutex );
-      mPool.push_back( mMembers );
-    }
+    if( --(mMembers->ReferenceCount) == 0 ) mPool.release( mMembers );
   }
 
 
@@ -107,53 +134,45 @@ namespace uhal
   template< typename T >
   ValWord< T >::ValWord ( const T& aValue , const uint32_t& aMask )
   {
-    boost::lock_guard<boost::mutex> lLock ( mMutex );
-    if( mPool.empty() )
-    {
-      mMembers = boost::shared_ptr< _ValWord_<T> >( new _ValWord_<T> ( aValue , false , aMask ) );
-    } else {
-      mMembers = mPool.back();
-      mPool.pop_back();
-
-      mMembers->valid = false;
-      mMembers->value = aValue;
-      mMembers->mask = aMask;
-    }
+    bool lFresh;
+    mPool.claim( mMembers , lFresh );    
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = false;
+    mMembers->value = aValue;
+    mMembers->mask = aMask;
   }
 
 
   template< typename T >
   ValWord< T >::ValWord ( const ValWord<T>& aVal ) :
     mMembers ( aVal.mMembers )
-  {}
+  {
+    ++(mMembers->ReferenceCount);    
+  }
+
+  template< typename T >
+  ValWord<T>& ValWord< T >::operator= ( const ValWord<T>& aVal )
+  {
+    if( --(mMembers->ReferenceCount) == 0 ) mPool.release( mMembers );
+    mMembers = aVal.mMembers ;
+    ++(mMembers->ReferenceCount);    
+    return *this;    
+  }
 
 
   template< typename T >
   ValWord< T >::ValWord()
   {
-    boost::lock_guard<boost::mutex> lLock ( mMutex );
-    if( mPool.empty() )
-    {
-      mMembers = boost::shared_ptr< _ValWord_<T> > ( new _ValWord_<T> (  T() , false , 0xFFFFFFFF ) );
-    } else {
-      mMembers = mPool.back();
-      mPool.pop_back();
-
-      mMembers->valid = false;
-      mMembers->value = T();
-      mMembers->mask = 0xFFFFFFFF;
-    }    
+    bool lFresh;
+    mPool.claim( mMembers , lFresh );
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = false;
   }
 
   template< typename T >
   ValWord< T >::~ValWord()
   {
-    if(mMembers.use_count() == 1)
-    {
-      // If we are the last user, then return to the pool
-      boost::lock_guard<boost::mutex> lLock ( mMutex );
-      mPool.push_back( mMembers );
-    }
+    if( --(mMembers->ReferenceCount) == 0 ) mPool.release( mMembers );
   }
 
   template< typename T >
@@ -236,17 +255,11 @@ namespace uhal
   template< typename T >
   ValVector< T >::ValVector ( const std::vector<T>& aValues )
   {
-    boost::lock_guard<boost::mutex> lLock ( mMutex );
-    if( mPool.empty() )
-    {
-      mMembers = boost::shared_ptr< _ValVector_<T> > ( new _ValVector_<T> ( aValues , false ) );
-    } else {
-      mMembers = mPool.back();
-      mPool.pop_back();
-
-      mMembers->valid = false;
-      mMembers->value = aValues;
-    }  
+    bool lFresh;
+    mPool.claim( mMembers , lFresh ); 
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = false;
+    mMembers->value = aValues;
   }
 
 
@@ -254,51 +267,44 @@ namespace uhal
   ValVector< T >::ValVector ( const ValVector& aValues ) :
     mMembers ( aValues.mMembers )
   {
+    ++(mMembers->ReferenceCount);    
   }
 
 
   template< typename T >
   ValVector< T >::ValVector ( const uint32_t& aSize ) 
   {
-    boost::lock_guard<boost::mutex> lLock ( mMutex );
-    if( mPool.empty() )
-    {
-      mMembers = boost::shared_ptr< _ValVector_<T> > ( new _ValVector_<T> ( std::vector<T> ( aSize , T() ) , false ) );
-    } else {
-      mMembers = mPool.back();
-      mPool.pop_back();
-
-      mMembers->valid = false;
-      mMembers->value.resize( aSize );
-    }
+    bool lFresh;
+    mPool.claim( mMembers , lFresh ); 
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = false;
+    mMembers->value.resize( aSize );
   }
 
 
   template< typename T >
   ValVector< T >::ValVector()
   {
-    boost::lock_guard<boost::mutex> lLock ( mMutex );
-    if( mPool.empty() )
-    {
-      mMembers = boost::shared_ptr< _ValVector_<T> > ( new _ValVector_<T> ( std::vector<T> () , false ) );
-    } else {
-      mMembers = mPool.back();
-      mPool.pop_back();
+    bool lFresh;
+    mPool.claim( mMembers , lFresh );  
+    ++(mMembers->ReferenceCount);
+    mMembers->valid = false;
+    mMembers->value.clear();
+  }
 
-      mMembers->valid = false;
-      mMembers->value.clear();
-    }    
+  template< typename T >
+  ValVector<T>& ValVector< T >::operator= ( const ValVector<T>& aVal )
+  {
+    if( --(mMembers->ReferenceCount) == 0 ) mPool.release( mMembers );
+    mMembers = aVal.mMembers ;
+    ++(mMembers->ReferenceCount);    
+    return *this;    
   }
 
   template< typename T >
   ValVector< T >::~ValVector()
   {
-    if(mMembers.use_count() == 1)
-    {
-      // If we are the last user, then return to the pool
-      boost::lock_guard<boost::mutex> lLock ( mMutex );
-      mPool.push_back( mMembers );
-    }    
+    if( --(mMembers->ReferenceCount) == 0 ) mPool.release( mMembers );
   }
 
 
@@ -476,22 +482,13 @@ namespace uhal
 
 
 
-  std::deque< boost::shared_ptr< _ValHeader_ > > ValHeader::mPool;
+  uhal::Pool< _ValHeader_ , true > ValHeader::mPool;
 
   template< typename T >
-  std::deque< boost::shared_ptr< _ValWord_< T > > > ValWord< T >::mPool;
+  uhal::Pool< _ValWord_< T > , true > ValWord< T >::mPool;
 
   template< typename T >  
-  std::deque< boost::shared_ptr< _ValVector_< T > > > ValVector< T >::mPool;
-
-
-  boost::mutex ValHeader::mMutex;
-
-  template< typename T >
-  boost::mutex ValWord< T >::mMutex;
-
-  template< typename T >  
-  boost::mutex ValVector< T >::mMutex;
+  uhal::Pool< _ValVector_< T > , true > ValVector< T >::mPool;
 
 
   template class ValWord< uint8_t >;

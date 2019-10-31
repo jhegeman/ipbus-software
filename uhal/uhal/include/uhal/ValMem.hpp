@@ -52,6 +52,8 @@
 #include "uhal/log/exception.hpp"
 #include "uhal/definitions.hpp"
 
+#include "uhal/utilities/Pool.hpp"
+
 
 namespace boost
 {
@@ -72,14 +74,12 @@ namespace uhal
   // Forward declare ClientInterface so it can be our friend
   class ClientInterface;
 
-
   // Forward declaration so we can define friends
   class ValHeader;
   // Forward declaration so we can define friends
   template< typename T > class ValWord;
   // Forward declaration so we can define friends
   template< typename T > class ValVector;
-
 
   //! A helper struct wrapping an IPbus header and a valid flag
   struct _ValHeader_
@@ -90,15 +90,19 @@ namespace uhal
       //! The IPbus header associated with the transaction that returned this data
       std::deque<uint32_t> IPbusHeaders;
 
+      //! A reference counter
+      std::size_t ReferenceCount;
+
     protected:
-      //! Make ValHeader a friend since it is the only class that should be able to create an instance this struct
-      friend class ValHeader;
+      //! Make the pool a friend since it is the only class that should be able to create an instance this struct
+      friend class uhal::Pool< _ValHeader_ , true >;
       /**
         Constructor
         Private, since this struct should only be used by the ValHeader
         @param aValid an initial validity
       */
-      _ValHeader_ ( const bool& aValid );
+      // _ValHeader_ ( const bool& aValid );
+      _ValHeader_ ();      
   };
 
 
@@ -114,8 +118,8 @@ namespace uhal
       uint32_t mask;
 
     protected:
-      //! Make ValWord a friend since it is the only class that should be able to create an instance this struct
-      friend class ValWord<T>;
+      //! Make the pool a friend since it is the only class that should be able to create an instance this struct
+      friend class uhal::Pool< _ValWord_<T> , true >;
       /**
         Constructor
         Private, since this struct should only be used by the ValWord
@@ -123,7 +127,8 @@ namespace uhal
         @param aValid an initial validity
         @param aMask a mask value
       */
-      _ValWord_ ( const T& aValue , const bool& aValid , const uint32_t aMask );
+      // _ValWord_ ( const T& aValue , const bool& aValid , const uint32_t aMask );
+      _ValWord_ ();
   };
 
 
@@ -136,16 +141,17 @@ namespace uhal
       std::vector<T> value;
 
     protected:
-      //! Make ValVector a friend since it is the only class that should be able to create an instance this struct
-      friend class ValVector<T>;
+      //! Make the pool a friend since it is the only class that should be able to create an instance this struct
+      friend class uhal::Pool< _ValVector_<T> , true >;
       /**
         Constructor
         Private, since this struct should only be used by the ValVector
         @param aValue an initial value
         @param aValid an initial validity
       */
-      _ValVector_ ( const std::vector<T>& aValue , const bool& aValid );
-  };
+      // _ValVector_ ( const std::vector<T>& aValue , const bool& aValid );
+      _ValVector_ ();
+    };
 
 
 
@@ -158,6 +164,13 @@ namespace uhal
     public:
       //! Default constructor
       ValHeader();
+
+      /**
+        Copy constructor
+        @param aVal a ValHeader to copy
+      */
+      ValHeader ( const ValHeader& aVal );
+
 
       virtual ~ValHeader();
 
@@ -176,6 +189,14 @@ namespace uhal
       ValHeader ( const ValVector<T>& aValVector );
 
       /**
+        Assignment operator 
+        @param aVal a Valword to assign from
+        @return a Reference to this ValWord for chained expressions
+      */
+      ValHeader& operator= ( const ValHeader& aVal );
+
+
+      /**
         Return whether the Validated memory is marked as valid
         @return whether the Validated memory is marked as valid
       */
@@ -188,13 +209,11 @@ namespace uhal
 
     protected:
       //! A shared pointer to a _ValWord_ struct, so that every copy of this ValWord points to the same underlying memory
-      boost::shared_ptr< _ValHeader_ > mMembers;
+      typename uhal::Pool< _ValHeader_ , true >::iterator mMembers;
 
       //! A pool of headers to minimize memory allocations
-      static std::deque< boost::shared_ptr< _ValHeader_ > > mPool;
-
-      //! A mutex lock to protect access to the pool in multithreaded environments      
-      static boost::mutex mMutex;      
+      static uhal::Pool< _ValHeader_ , true > mPool;
+   
   };
 
 
@@ -225,6 +244,15 @@ namespace uhal
       */
       ValWord ( const ValWord<T>& aVal );
 
+
+      /**
+        Assignment operator 
+        @param aValword a Val to assign from
+        @return a Reference to this ValWord for chained expressions
+      */
+      ValWord<T>& operator= ( const ValWord<T>& aVal );
+
+
       //! Default constructor
       ValWord();
 
@@ -245,7 +273,7 @@ namespace uhal
         @param aValue Change the value stored in the Validated memory
         @return aReference to this ValWord for chained expressions
       */
-      ValWord& operator = ( const T& aValue );
+      ValWord<T>& operator = ( const T& aValue );
 
       /**
         Return the value of the validated memory with check on validity
@@ -279,13 +307,11 @@ namespace uhal
 
     private:
       //! A shared pointer to a _ValWord_ struct, so that every copy of this ValWord points to the same underlying memory
-      boost::shared_ptr< _ValWord_<T> > mMembers;
+      typename uhal::Pool< _ValWord_<T> , true >::iterator mMembers;
 
       //! A pool of headers to minimize memory allocations
-      static std::deque< boost::shared_ptr< _ValWord_<T> > > mPool;
-
-      //! A mutex lock to protect access to the pool in multithreaded environments      
-      static boost::mutex mMutex;      
+      static uhal::Pool< _ValWord_<T>, true > mPool;
+  
   };
 
 
@@ -332,6 +358,13 @@ namespace uhal
 
       //! Default constructor
       ValVector();
+
+      /**
+        Assignment operator 
+        @param aVal a Val to assign from
+        @return a Reference to this ValWord for chained expressions
+      */
+      ValVector<T>& operator= ( const ValVector<T>& aVal );
 
       /**
         Return whether the Validated memory is marked as valid
@@ -419,13 +452,11 @@ namespace uhal
 
     private:
       //! A shared pointer to a _ValVector_ struct, so that every copy of this ValVector points to the same underlying memory
-      boost::shared_ptr< _ValVector_<T> > mMembers;
+      typename uhal::Pool< _ValVector_<T> , true >::iterator mMembers;
 
       //! A pool of headers to minimize memory allocations
-      static std::deque< boost::shared_ptr< _ValVector_<T> > > mPool;
-
-      //! A mutex lock to protect access to the pool in multithreaded environments      
-      static boost::mutex mMutex;      
+      static uhal::Pool< _ValVector_<T>, true > mPool;
+    
   };
 
 }
