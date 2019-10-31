@@ -45,12 +45,18 @@
 #include <deque>
 #include <stdint.h>                // for uint32_t, uint8_t
 #include <vector>
+#include <deque>
 
 #include <boost/shared_ptr.hpp>
 
 #include "uhal/log/exception.hpp"
 #include "uhal/definitions.hpp"
 
+
+namespace boost
+{
+  class mutex;
+}
 
 
 namespace uhal
@@ -153,6 +159,8 @@ namespace uhal
       //! Default constructor
       ValHeader();
 
+      virtual ~ValHeader();
+
       /**
         Constructor to allow you to throw away returned information in a ValWord and just keep reply headers and validity state
         @param aValWord a ValWord whose reply headers and validity state are to be copied
@@ -181,6 +189,12 @@ namespace uhal
     protected:
       //! A shared pointer to a _ValWord_ struct, so that every copy of this ValWord points to the same underlying memory
       boost::shared_ptr< _ValHeader_ > mMembers;
+
+      //! A pool of headers to minimize memory allocations
+      static std::deque< boost::shared_ptr< _ValHeader_ > > mPool;
+
+      //! A mutex lock to protect access to the pool in multithreaded environments      
+      static boost::mutex mMutex;      
   };
 
 
@@ -202,6 +216,8 @@ namespace uhal
         @param aMask a mask for modifying returned values
       */
       ValWord ( const T& aValue , const uint32_t& aMask = defs::NOMASK );
+
+      virtual ~ValWord();
 
       /**
         Copy constructor
@@ -265,6 +281,11 @@ namespace uhal
       //! A shared pointer to a _ValWord_ struct, so that every copy of this ValWord points to the same underlying memory
       boost::shared_ptr< _ValWord_<T> > mMembers;
 
+      //! A pool of headers to minimize memory allocations
+      static std::deque< boost::shared_ptr< _ValWord_<T> > > mPool;
+
+      //! A mutex lock to protect access to the pool in multithreaded environments      
+      static boost::mutex mMutex;      
   };
 
 
@@ -294,6 +315,8 @@ namespace uhal
         @param aValues a vector of values to which the validated memory will be initialized
       */
       ValVector ( const std::vector<T>& aValues );
+
+      virtual ~ValVector();
 
       /**
         Copy Constructor
@@ -398,6 +421,11 @@ namespace uhal
       //! A shared pointer to a _ValVector_ struct, so that every copy of this ValVector points to the same underlying memory
       boost::shared_ptr< _ValVector_<T> > mMembers;
 
+      //! A pool of headers to minimize memory allocations
+      static std::deque< boost::shared_ptr< _ValVector_<T> > > mPool;
+
+      //! A mutex lock to protect access to the pool in multithreaded environments      
+      static boost::mutex mMutex;      
   };
 
 }
