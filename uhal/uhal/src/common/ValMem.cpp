@@ -386,6 +386,22 @@ namespace uhal
   }
 
 
+  template< typename T >
+  void ValVector< T >::swap ( std::vector<T>& aValue )
+  {
+    if ( mMembers->valid )
+    {
+      mMembers->value.swap( aValue );
+      mMembers->valid = false;
+    }
+    else
+    {
+      exception::NonValidatedMemory lExc;
+      log ( lExc , "Access attempted on non-validated memory" );
+      throw lExc;
+    }
+  }
+
   template class ValWord< uint8_t >;
   template class ValWord< uint32_t >;
 

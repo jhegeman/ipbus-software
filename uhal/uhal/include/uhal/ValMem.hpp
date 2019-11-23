@@ -394,6 +394,9 @@ namespace uhal
       */
       void value ( const std::vector<T>& aValue );
 
+
+      void swap( std::vector<T>& aValue );
+
     private:
       //! A shared pointer to a _ValVector_ struct, so that every copy of this ValVector points to the same underlying memory
       boost::shared_ptr< _ValVector_<T> > mMembers;
